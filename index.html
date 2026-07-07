@@ -1,57 +1,272 @@
-<h2 class="sr-only">An interactive to-do list with custom categories, subcategories, start and end dates, saved automatically.</h2>
-<div style="max-width: 560px;">
-  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-    <input id="new-task" type="text" placeholder="Add a task" style="flex:2; min-width:140px;" />
-    <select id="new-category" style="flex:1; min-width:120px;"></select>
-    <select id="new-subcategory" style="flex:1; min-width:120px; display:none;"></select>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>To-do list</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  :root{
+    --bg:#f7f7f5;
+    --surface:#ffffff;
+    --surface-1:#f1efe8;
+    --border:#e2e0da;
+    --border-strong:#c7c4bb;
+    --text:#1f1f1d;
+    --text-secondary:#5f5e5a;
+    --text-muted:#8b897f;
+    --accent-bg:#e6f1fb;
+    --accent-text:#0c447c;
+    --accent-border:#378add;
+    --danger:#a32d2d;
+    --radius:8px;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display:flex;
+    justify-content:center;
+    padding:40px 16px;
+  }
+  .app{
+    width:100%;
+    max-width:560px;
+  }
+  h1{
+    font-size:22px;
+    font-weight:500;
+    margin:0 0 20px;
+  }
+  input, select, button{
+    font-family:inherit;
+    font-size:14px;
+    border-radius:var(--radius);
+    border:1px solid var(--border-strong);
+    background:var(--surface);
+    color:var(--text);
+    padding:8px 10px;
+    height:36px;
+  }
+  button{
+    cursor:pointer;
+    background:var(--surface);
+  }
+  button:hover{
+    background:var(--surface-1);
+  }
+  button:active{
+    transform:scale(0.98);
+  }
+  .row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .row > *{ flex:1; min-width:120px; }
+  .row.dates > div{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .row.dates label{
+    font-size:12px;
+    color:var(--text-secondary);
+    white-space:nowrap;
+  }
+  #add-btn{ width:100%; margin-bottom:16px; }
+  .filters{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:10px;
+    align-items:center;
+  }
+  .filter-btn{ font-size:13px; padding:4px 12px; height:auto; }
+  .filter-btn.active{
+    background:var(--accent-bg);
+    color:var(--accent-text);
+    border-color:var(--accent-border);
+  }
+  #category-filter{ font-size:13px; height:28px; margin-left:4px; }
+  #count{ margin-left:auto; font-size:13px; color:var(--text-muted); }
+  #manage-toggle{ font-size:12px; padding:3px 10px; color:var(--text-muted); height:auto; }
+  #manage-panel{
+    display:none;
+    flex-direction:column;
+    gap:8px;
+    margin-top:10px;
+  }
+  .cat-block{
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:8px 10px;
+  }
+  .cat-block .head{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .badge{
+    font-size:12px;
+    padding:2px 10px;
+    border-radius:var(--radius);
+  }
+  .icon-btn{
+    border:none;
+    background:transparent;
+    padding:2px;
+    height:auto;
+    color:var(--text-muted);
+  }
+  .sub-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-top:8px;
+    padding-left:8px;
+  }
+  .chip{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-size:11px;
+    padding:2px 4px 2px 8px;
+    border-radius:var(--radius);
+    background:var(--surface-1);
+    color:var(--text-secondary);
+  }
+  .chip button{
+    border:none;
+    background:transparent;
+    padding:0 2px;
+    height:auto;
+    color:inherit;
+    display:flex;
+    align-items:center;
+  }
+  #list{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .task-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 12px;
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    background:var(--surface);
+  }
+  .check{
+    width:20px; height:20px; min-width:20px;
+    border-radius:50%;
+    border:1.5px solid var(--border-strong);
+    background:transparent;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0;
+    height:20px;
+  }
+  .check.done{
+    border-color:var(--accent-border);
+    background:var(--accent-bg);
+  }
+  .mid{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+    min-width:0;
+  }
+  .label{
+    font-size:14px;
+    overflow-wrap:break-word;
+  }
+  .label.done{
+    color:var(--text-muted);
+    text-decoration:line-through;
+  }
+  .meta{
+    display:flex;
+    gap:6px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .meta .date{
+    font-size:11px;
+    color:var(--text-muted);
+  }
+  .del{
+    border:none;
+    background:transparent;
+    padding:4px;
+    height:auto;
+    color:var(--text-muted);
+  }
+  #empty{
+    display:none;
+    text-align:center;
+    padding:2rem 1rem;
+    color:var(--text-muted);
+    font-size:14px;
+  }
+  #add-cat-row, #add-subcat-row{
+    display:none;
+    gap:8px;
+    margin-bottom:10px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>To-do list</h1>
+
+  <div class="row">
+    <input id="new-task" type="text" placeholder="Add a task" style="flex:2;" />
+    <select id="new-category"></select>
+    <select id="new-subcategory" style="display:none;"></select>
   </div>
-  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; align-items:center;">
-    <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:150px;">
-      <label style="font-size:12px; color:var(--text-secondary); white-space:nowrap;">Start</label>
-      <input id="new-start-date" type="date" style="flex:1;" />
-    </div>
-    <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:150px;">
-      <label style="font-size:12px; color:var(--text-secondary); white-space:nowrap;">End</label>
-      <input id="new-end-date" type="date" style="flex:1;" />
-    </div>
+  <div class="row dates">
+    <div><label>Start</label><input id="new-start-date" type="date" /></div>
+    <div><label>End</label><input id="new-end-date" type="date" /></div>
   </div>
 
-  <div id="add-cat-row" style="display:none; gap:8px; margin-bottom:10px;">
+  <div id="add-cat-row">
     <input id="new-cat-name" type="text" placeholder="New category name" style="flex:1;" />
-    <button id="save-cat-btn" style="white-space:nowrap;">Add</button>
-    <button id="cancel-cat-btn" style="white-space:nowrap;">Cancel</button>
+    <button id="save-cat-btn">Add</button>
+    <button id="cancel-cat-btn">Cancel</button>
   </div>
 
-  <div id="add-subcat-row" style="display:none; gap:8px; margin-bottom:10px;">
+  <div id="add-subcat-row">
     <input id="new-subcat-name" type="text" placeholder="New subcategory name" style="flex:1;" />
-    <button id="save-subcat-btn" style="white-space:nowrap;">Add</button>
-    <button id="cancel-subcat-btn" style="white-space:nowrap;">Cancel</button>
+    <button id="save-subcat-btn">Add</button>
+    <button id="cancel-subcat-btn">Cancel</button>
   </div>
 
-  <div style="margin-bottom:16px;">
-    <button id="add-btn" style="width:100%;"><i class="ti ti-plus" style="font-size:16px; vertical-align:-2px;" aria-hidden="true"></i> Add task</button>
+  <button id="add-btn"><i class="ti ti-plus" aria-hidden="true"></i> Add task</button>
+
+  <div class="filters">
+    <button class="filter-btn" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="active">Active</button>
+    <button class="filter-btn" data-filter="done">Done</button>
+    <select id="category-filter"></select>
+    <span id="count"></span>
   </div>
 
-  <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; align-items:center;">
-    <button class="filter-btn" data-filter="all" style="font-size:13px; padding:4px 12px;">All</button>
-    <button class="filter-btn" data-filter="active" style="font-size:13px; padding:4px 12px;">Active</button>
-    <button class="filter-btn" data-filter="done" style="font-size:13px; padding:4px 12px;">Done</button>
-    <select id="category-filter" style="font-size:13px; height:28px; margin-left:4px;"></select>
-    <span id="count" style="margin-left:auto; font-size:13px; color:var(--text-muted);"></span>
+  <div id="manage-row">
+    <button id="manage-toggle"><i class="ti ti-settings" aria-hidden="true"></i> Manage categories</button>
+    <div id="manage-panel"></div>
   </div>
 
-  <div id="manage-row" style="margin-bottom:14px;">
-    <button id="manage-toggle" style="font-size:12px; padding:3px 10px; color:var(--text-muted);">
-      <i class="ti ti-settings" style="font-size:13px; vertical-align:-2px;" aria-hidden="true"></i> Manage categories
-    </button>
-    <div id="manage-panel" style="display:none; flex-direction:column; gap:8px; margin-top:10px;"></div>
-  </div>
+  <div id="list"></div>
 
-  <div id="list" style="display:flex; flex-direction:column; gap:6px;"></div>
-
-  <div id="empty" style="display:none; text-align:center; padding:2rem 1rem; color:var(--text-muted); font-size:14px;">
-    Nothing here yet. Add your first task above.
-  </div>
+  <div id="empty">Nothing here yet. Add your first task above.</div>
 </div>
 
 <script>
@@ -129,17 +344,18 @@
     if(changed) saveTasks();
   }
 
-  async function loadAll(){
+  function loadAll(){
     try {
-      var res = await window.storage.get(CATS_KEY, false);
-      categories = res ? JSON.parse(res.value) : DEFAULT_CATS;
+      var raw = localStorage.getItem(CATS_KEY);
+      categories = raw ? JSON.parse(raw) : DEFAULT_CATS;
     } catch(e) {
       categories = DEFAULT_CATS;
     }
     categories.forEach(function(c){ if(!c.subcategories) c.subcategories = []; });
+
     try {
-      var tres = await window.storage.get(TASKS_KEY, false);
-      tasks = tres ? JSON.parse(tres.value) : [];
+      var traw = localStorage.getItem(TASKS_KEY);
+      tasks = traw ? JSON.parse(traw) : [];
     } catch(e) {
       tasks = [];
     }
@@ -149,19 +365,20 @@
       if(t.endDate === undefined) t.endDate = '';
       if(t.subcategory === undefined) t.subcategory = '';
     });
+
     rollForwardOverdue();
     renderCategoryOptions();
     updateSubcategoryOptions();
     render();
   }
 
-  async function saveTasks(){
-    try { await window.storage.set(TASKS_KEY, JSON.stringify(tasks), false); }
+  function saveTasks(){
+    try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); }
     catch(e){ console.error('Save failed', e); }
   }
 
-  async function saveCategories(){
-    try { await window.storage.set(CATS_KEY, JSON.stringify(categories), false); }
+  function saveCategories(){
+    try { localStorage.setItem(CATS_KEY, JSON.stringify(categories)); }
     catch(e){ console.error('Save failed', e); }
   }
 
@@ -280,19 +497,23 @@
     panel.innerHTML = '';
     categories.forEach(function(c){
       var block = document.createElement('div');
-      block.style.cssText = 'border:0.5px solid var(--border); border-radius:var(--radius); padding:8px 10px;';
+      block.className = 'cat-block';
 
       var head = document.createElement('div');
-      head.style.cssText = 'display:flex; align-items:center; gap:8px;';
+      head.className = 'head';
 
       var badge = document.createElement('span');
+      badge.className = 'badge';
       badge.textContent = c.name;
-      badge.style.cssText = 'font-size:12px; padding:2px 10px; border-radius:var(--radius); background:' + c.color.bg + '; color:' + c.color.text + ';';
+      badge.style.background = c.color.bg;
+      badge.style.color = c.color.text;
       head.appendChild(badge);
 
       var addSubBtn = document.createElement('button');
       addSubBtn.textContent = '+ Subcategory';
-      addSubBtn.style.cssText = 'font-size:11px; padding:3px 8px;';
+      addSubBtn.style.fontSize = '11px';
+      addSubBtn.style.padding = '3px 8px';
+      addSubBtn.style.height = 'auto';
       addSubBtn.onclick = function(){
         manageOpenFor = c.name;
         document.getElementById('add-subcat-row').style.display = 'flex';
@@ -302,9 +523,10 @@
 
       if(categories.length > 1){
         var delBtn = document.createElement('button');
+        delBtn.className = 'icon-btn';
+        delBtn.style.marginLeft = 'auto';
         delBtn.setAttribute('aria-label', 'Delete ' + c.name + ' category');
-        delBtn.style.cssText = 'margin-left:auto; border:none; background:transparent; padding:2px; cursor:pointer; color:var(--text-muted);';
-        delBtn.innerHTML = '<i class="ti ti-trash" style="font-size:14px;" aria-hidden="true"></i>';
+        delBtn.innerHTML = '<i class="ti ti-trash" aria-hidden="true"></i>';
         delBtn.onclick = function(){ deleteCategory(c.name); };
         head.appendChild(delBtn);
       }
@@ -313,15 +535,14 @@
 
       if(c.subcategories.length > 0){
         var subRow = document.createElement('div');
-        subRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-left:8px;';
+        subRow.className = 'sub-row';
         c.subcategories.forEach(function(s){
           var chip = document.createElement('span');
-          chip.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:2px 4px 2px 8px; border-radius:var(--radius); background:var(--surface-1); color:var(--text-secondary);';
+          chip.className = 'chip';
           chip.textContent = s;
           var x = document.createElement('button');
           x.setAttribute('aria-label', 'Delete ' + s + ' subcategory');
-          x.style.cssText = 'border:none; background:transparent; padding:0 2px; cursor:pointer; color:inherit; display:flex; align-items:center;';
-          x.innerHTML = '<i class="ti ti-x" style="font-size:11px;" aria-hidden="true"></i>';
+          x.innerHTML = '<i class="ti ti-x" aria-hidden="true"></i>';
           x.onclick = function(){ deleteSubcategory(c.name, s); };
           chip.appendChild(x);
           subRow.appendChild(chip);
@@ -359,9 +580,7 @@
 
     document.querySelectorAll('.filter-btn').forEach(function(btn){
       var active = btn.getAttribute('data-filter') === filter;
-      btn.style.background = active ? 'var(--bg-accent)' : '';
-      btn.style.color = active ? 'var(--text-accent)' : '';
-      btn.style.borderColor = active ? 'var(--border-accent)' : '';
+      btn.classList.toggle('active', active);
     });
 
     var visible = tasks.filter(function(t){
@@ -381,36 +600,44 @@
       empty.style.display = 'none';
       visible.forEach(function(t){
         var row = document.createElement('div');
-        row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:10px 12px; border:0.5px solid var(--border); border-radius:var(--radius); background:var(--surface-2);';
+        row.className = 'task-row';
 
         var check = document.createElement('button');
+        check.className = 'check' + (t.done ? ' done' : '');
         check.setAttribute('aria-label', t.done ? 'Mark as not done' : 'Mark as done');
-        check.style.cssText = 'width:20px; height:20px; min-width:20px; border-radius:50%; border:1.5px solid ' + (t.done ? 'var(--border-accent)' : 'var(--border-strong)') + '; background:' + (t.done ? 'var(--bg-accent)' : 'transparent') + '; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer;';
         if(t.done){
-          check.innerHTML = '<i class="ti ti-check" style="font-size:13px; color:var(--text-accent);" aria-hidden="true"></i>';
+          check.innerHTML = '<i class="ti ti-check" style="font-size:13px; color:var(--accent-text);" aria-hidden="true"></i>';
         }
         check.onclick = function(){ toggleTask(t.id); };
 
         var mid = document.createElement('div');
-        mid.style.cssText = 'flex:1; display:flex; flex-direction:column; gap:3px; min-width:0;';
+        mid.className = 'mid';
 
         var label = document.createElement('span');
         label.textContent = t.text;
-        label.style.cssText = 'font-size:14px; overflow-wrap:break-word; ' + (t.done ? 'color:var(--text-muted); text-decoration:line-through;' : 'color:var(--text-primary);');
+        label.className = 'label' + (t.done ? ' done' : '');
 
         var meta = document.createElement('div');
-        meta.style.cssText = 'display:flex; gap:6px; align-items:center; flex-wrap:wrap;';
+        meta.className = 'meta';
 
         var colors = catColor(t.category);
         var badge = document.createElement('span');
+        badge.className = 'badge';
         badge.textContent = t.category;
-        badge.style.cssText = 'font-size:11px; padding:2px 8px; border-radius:var(--radius); background:' + colors.bg + '; color:' + colors.text + ';';
+        badge.style.background = colors.bg;
+        badge.style.color = colors.text;
+        badge.style.fontSize = '11px';
+        badge.style.padding = '2px 8px';
         meta.appendChild(badge);
 
         if(t.subcategory){
           var subBadge = document.createElement('span');
           subBadge.textContent = t.subcategory;
-          subBadge.style.cssText = 'font-size:11px; padding:2px 8px; border-radius:var(--radius); background:var(--surface-1); color:var(--text-secondary);';
+          subBadge.style.fontSize = '11px';
+          subBadge.style.padding = '2px 8px';
+          subBadge.style.borderRadius = 'var(--radius)';
+          subBadge.style.background = 'var(--surface-1)';
+          subBadge.style.color = 'var(--text-secondary)';
           meta.appendChild(subBadge);
         }
 
@@ -424,8 +651,8 @@
           } else if(t.endDate){
             dateText = formatDate(t.endDate);
           }
+          dateEl.className = 'date';
           dateEl.innerHTML = '<i class="ti ti-calendar" style="font-size:12px; vertical-align:-1px;" aria-hidden="true"></i> ' + dateText;
-          dateEl.style.cssText = 'font-size:11px; color:var(--text-muted);';
           meta.appendChild(dateEl);
         }
 
@@ -433,8 +660,8 @@
         mid.appendChild(meta);
 
         var del = document.createElement('button');
+        del.className = 'del';
         del.setAttribute('aria-label', 'Delete task');
-        del.style.cssText = 'border:none; background:transparent; padding:4px; cursor:pointer; color:var(--text-muted);';
         del.innerHTML = '<i class="ti ti-trash" style="font-size:16px;" aria-hidden="true"></i>';
         del.onclick = function(){ deleteTask(t.id); };
 
@@ -528,3 +755,5 @@
   loadAll();
 })();
 </script>
+</body>
+</html>
