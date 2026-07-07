@@ -1,0 +1,500 @@
+<h2 class="sr-only">An interactive to-do list with custom categories, subcategories, and due dates, saved automatically.</h2>
+<div style="max-width: 520px;">
+  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+    <input id="new-task" type="text" placeholder="Add a task" style="flex:2; min-width:140px;" />
+    <select id="new-category" style="flex:1; min-width:120px;"></select>
+    <select id="new-subcategory" style="flex:1; min-width:120px; display:none;"></select>
+    <input id="new-date" type="date" style="flex:1; min-width:130px;" />
+  </div>
+
+  <div id="add-cat-row" style="display:none; gap:8px; margin-bottom:10px;">
+    <input id="new-cat-name" type="text" placeholder="New category name" style="flex:1;" />
+    <button id="save-cat-btn" style="white-space:nowrap;">Add</button>
+    <button id="cancel-cat-btn" style="white-space:nowrap;">Cancel</button>
+  </div>
+
+  <div id="add-subcat-row" style="display:none; gap:8px; margin-bottom:10px;">
+    <input id="new-subcat-name" type="text" placeholder="New subcategory name" style="flex:1;" />
+    <button id="save-subcat-btn" style="white-space:nowrap;">Add</button>
+    <button id="cancel-subcat-btn" style="white-space:nowrap;">Cancel</button>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <button id="add-btn" style="width:100%;"><i class="ti ti-plus" style="font-size:16px; vertical-align:-2px;" aria-hidden="true"></i> Add task</button>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; align-items:center;">
+    <button class="filter-btn" data-filter="all" style="font-size:13px; padding:4px 12px;">All</button>
+    <button class="filter-btn" data-filter="active" style="font-size:13px; padding:4px 12px;">Active</button>
+    <button class="filter-btn" data-filter="done" style="font-size:13px; padding:4px 12px;">Done</button>
+    <select id="category-filter" style="font-size:13px; height:28px; margin-left:4px;"></select>
+    <span id="count" style="margin-left:auto; font-size:13px; color:var(--text-muted);"></span>
+  </div>
+
+  <div id="manage-row" style="margin-bottom:14px;">
+    <button id="manage-toggle" style="font-size:12px; padding:3px 10px; color:var(--text-muted);">
+      <i class="ti ti-settings" style="font-size:13px; vertical-align:-2px;" aria-hidden="true"></i> Manage categories
+    </button>
+    <div id="manage-panel" style="display:none; flex-direction:column; gap:8px; margin-top:10px;"></div>
+  </div>
+
+  <div id="list" style="display:flex; flex-direction:column; gap:6px;"></div>
+
+  <div id="empty" style="display:none; text-align:center; padding:2rem 1rem; color:var(--text-muted); font-size:14px;">
+    Nothing here yet. Add your first task above.
+  </div>
+</div>
+
+<script>
+(function(){
+  var TASKS_KEY = 'todos';
+  var CATS_KEY = 'categories';
+  var tasks = [];
+  var categories = [];
+  var filter = 'all';
+  var categoryFilter = 'all';
+  var manageOpenFor = null;
+
+  var PALETTE = [
+    { bg: '#E6F1FB', text: '#0C447C' },
+    { bg: '#EEEDFE', text: '#3C3489' },
+    { bg: '#E1F5EE', text: '#085041' },
+    { bg: '#FAECE7', text: '#712B13' },
+    { bg: '#EAF3DE', text: '#27500A' },
+    { bg: '#FBEAF0', text: '#72243E' },
+    { bg: '#FAEEDA', text: '#633806' },
+    { bg: '#F1EFE8', text: '#444441' }
+  ];
+
+  var DEFAULT_CATS = [
+    { name: 'Personal', color: PALETTE[0], subcategories: [] },
+    { name: 'Work', color: PALETTE[1], subcategories: [] },
+    { name: 'Education', color: PALETTE[2], subcategories: [] },
+    { name: 'Shopping', color: PALETTE[3], subcategories: [] },
+    { name: 'Health', color: PALETTE[4], subcategories: [] },
+    { name: 'Other', color: PALETTE[7], subcategories: [] }
+  ];
+
+  function uid(){ return 't' + Date.now() + Math.random().toString(36).slice(2,7); }
+
+  function todayStr(){
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function formatDate(dateStr){
+    if(!dateStr) return '';
+    var parts = dateStr.split('-');
+    var d = new Date(parts[0], parts[1]-1, parts[2]);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function getCategory(name){
+    return categories.find(function(c){ return c.name === name; });
+  }
+
+  function catColor(name){
+    var c = getCategory(name);
+    return c ? c.color : PALETTE[7];
+  }
+
+  function rollForwardOverdue(){
+    var today = todayStr();
+    var changed = false;
+    tasks.forEach(function(t){
+      if(!t.done && t.date && t.date < today){
+        t.date = today;
+        changed = true;
+      }
+    });
+    if(changed) saveTasks();
+  }
+
+  async function loadAll(){
+    try {
+      var res = await window.storage.get(CATS_KEY, false);
+      categories = res ? JSON.parse(res.value) : DEFAULT_CATS;
+    } catch(e) {
+      categories = DEFAULT_CATS;
+    }
+    categories.forEach(function(c){ if(!c.subcategories) c.subcategories = []; });
+    try {
+      var tres = await window.storage.get(TASKS_KEY, false);
+      tasks = tres ? JSON.parse(tres.value) : [];
+    } catch(e) {
+      tasks = [];
+    }
+    tasks.forEach(function(t){
+      if(!t.category) t.category = 'Other';
+      if(t.date === undefined) t.date = '';
+      if(t.subcategory === undefined) t.subcategory = '';
+    });
+    rollForwardOverdue();
+    renderCategoryOptions();
+    updateSubcategoryOptions();
+    render();
+  }
+
+  async function saveTasks(){
+    try { await window.storage.set(TASKS_KEY, JSON.stringify(tasks), false); }
+    catch(e){ console.error('Save failed', e); }
+  }
+
+  async function saveCategories(){
+    try { await window.storage.set(CATS_KEY, JSON.stringify(categories), false); }
+    catch(e){ console.error('Save failed', e); }
+  }
+
+  function addCategory(name){
+    name = name.trim();
+    if(!name) return;
+    if(categories.some(function(c){ return c.name.toLowerCase() === name.toLowerCase(); })) return;
+    var color = PALETTE[categories.length % PALETTE.length];
+    categories.push({ name: name, color: color, subcategories: [] });
+    saveCategories();
+    renderCategoryOptions();
+    renderManagePanel();
+    document.getElementById('new-category').value = name;
+    updateSubcategoryOptions();
+  }
+
+  function deleteCategory(name){
+    if(categories.length <= 1) return;
+    categories = categories.filter(function(c){ return c.name !== name; });
+    tasks.forEach(function(t){
+      if(t.category === name){ t.category = categories[0].name; t.subcategory = ''; }
+    });
+    saveCategories();
+    saveTasks();
+    renderCategoryOptions();
+    renderManagePanel();
+    updateSubcategoryOptions();
+    render();
+  }
+
+  function addSubcategory(catName, subName){
+    subName = subName.trim();
+    if(!subName) return;
+    var cat = getCategory(catName);
+    if(!cat) return;
+    if(cat.subcategories.some(function(s){ return s.toLowerCase() === subName.toLowerCase(); })) return;
+    cat.subcategories.push(subName);
+    saveCategories();
+    renderManagePanel();
+    updateSubcategoryOptions();
+  }
+
+  function deleteSubcategory(catName, subName){
+    var cat = getCategory(catName);
+    if(!cat) return;
+    cat.subcategories = cat.subcategories.filter(function(s){ return s !== subName; });
+    tasks.forEach(function(t){
+      if(t.category === catName && t.subcategory === subName) t.subcategory = '';
+    });
+    saveCategories();
+    saveTasks();
+    renderManagePanel();
+    updateSubcategoryOptions();
+    render();
+  }
+
+  function updateSubcategoryOptions(){
+    var catSel = document.getElementById('new-category');
+    var subSel = document.getElementById('new-subcategory');
+    var cat = getCategory(catSel.value);
+    subSel.innerHTML = '';
+    if(cat && cat.subcategories.length > 0){
+      var noneOpt = document.createElement('option');
+      noneOpt.value = '';
+      noneOpt.textContent = 'No subcategory';
+      subSel.appendChild(noneOpt);
+      cat.subcategories.forEach(function(s){
+        var opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        subSel.appendChild(opt);
+      });
+      subSel.style.display = '';
+    } else {
+      subSel.style.display = 'none';
+    }
+  }
+
+  function renderCategoryOptions(){
+    var sel = document.getElementById('new-category');
+    var filt = document.getElementById('category-filter');
+    var prevSel = sel.value;
+    var prevFilt = filt.value;
+
+    sel.innerHTML = '';
+    categories.forEach(function(c){
+      var opt = document.createElement('option');
+      opt.value = c.name;
+      opt.textContent = c.name;
+      sel.appendChild(opt);
+    });
+    var addOpt = document.createElement('option');
+    addOpt.value = '__add__';
+    addOpt.textContent = '+ New category...';
+    sel.appendChild(addOpt);
+    if(categories.some(function(c){ return c.name === prevSel; })) sel.value = prevSel;
+
+    filt.innerHTML = '';
+    var allOpt = document.createElement('option');
+    allOpt.value = 'all';
+    allOpt.textContent = 'All categories';
+    filt.appendChild(allOpt);
+    categories.forEach(function(c){
+      var opt = document.createElement('option');
+      opt.value = c.name;
+      opt.textContent = c.name;
+      filt.appendChild(opt);
+    });
+    if(prevFilt && (prevFilt === 'all' || categories.some(function(c){ return c.name === prevFilt; }))){
+      filt.value = prevFilt;
+    }
+  }
+
+  function renderManagePanel(){
+    var panel = document.getElementById('manage-panel');
+    panel.innerHTML = '';
+    categories.forEach(function(c){
+      var block = document.createElement('div');
+      block.style.cssText = 'border:0.5px solid var(--border); border-radius:var(--radius); padding:8px 10px;';
+
+      var head = document.createElement('div');
+      head.style.cssText = 'display:flex; align-items:center; gap:8px;';
+
+      var badge = document.createElement('span');
+      badge.textContent = c.name;
+      badge.style.cssText = 'font-size:12px; padding:2px 10px; border-radius:var(--radius); background:' + c.color.bg + '; color:' + c.color.text + ';';
+      head.appendChild(badge);
+
+      var addSubBtn = document.createElement('button');
+      addSubBtn.textContent = '+ Subcategory';
+      addSubBtn.style.cssText = 'font-size:11px; padding:3px 8px;';
+      addSubBtn.onclick = function(){
+        manageOpenFor = c.name;
+        document.getElementById('add-subcat-row').style.display = 'flex';
+        document.getElementById('new-subcat-name').focus();
+      };
+      head.appendChild(addSubBtn);
+
+      if(categories.length > 1){
+        var delBtn = document.createElement('button');
+        delBtn.setAttribute('aria-label', 'Delete ' + c.name + ' category');
+        delBtn.style.cssText = 'margin-left:auto; border:none; background:transparent; padding:2px; cursor:pointer; color:var(--text-muted);';
+        delBtn.innerHTML = '<i class="ti ti-trash" style="font-size:14px;" aria-hidden="true"></i>';
+        delBtn.onclick = function(){ deleteCategory(c.name); };
+        head.appendChild(delBtn);
+      }
+
+      block.appendChild(head);
+
+      if(c.subcategories.length > 0){
+        var subRow = document.createElement('div');
+        subRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-left:8px;';
+        c.subcategories.forEach(function(s){
+          var chip = document.createElement('span');
+          chip.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:2px 4px 2px 8px; border-radius:var(--radius); background:var(--surface-1); color:var(--text-secondary);';
+          chip.textContent = s;
+          var x = document.createElement('button');
+          x.setAttribute('aria-label', 'Delete ' + s + ' subcategory');
+          x.style.cssText = 'border:none; background:transparent; padding:0 2px; cursor:pointer; color:inherit; display:flex; align-items:center;';
+          x.innerHTML = '<i class="ti ti-x" style="font-size:11px;" aria-hidden="true"></i>';
+          x.onclick = function(){ deleteSubcategory(c.name, s); };
+          chip.appendChild(x);
+          subRow.appendChild(chip);
+        });
+        block.appendChild(subRow);
+      }
+
+      panel.appendChild(block);
+    });
+  }
+
+  function addTask(text, category, subcategory, date){
+    text = text.trim();
+    if(!text) return;
+    tasks.unshift({ id: uid(), text: text, done: false, category: category || categories[0].name, subcategory: subcategory || '', date: date || '' });
+    saveTasks();
+    render();
+  }
+
+  function toggleTask(id){
+    var t = tasks.find(function(x){ return x.id === id; });
+    if(t){ t.done = !t.done; saveTasks(); render(); }
+  }
+
+  function deleteTask(id){
+    tasks = tasks.filter(function(x){ return x.id !== id; });
+    saveTasks();
+    render();
+  }
+
+  function render(){
+    var list = document.getElementById('list');
+    var empty = document.getElementById('empty');
+    var countEl = document.getElementById('count');
+
+    document.querySelectorAll('.filter-btn').forEach(function(btn){
+      var active = btn.getAttribute('data-filter') === filter;
+      btn.style.background = active ? 'var(--bg-accent)' : '';
+      btn.style.color = active ? 'var(--text-accent)' : '';
+      btn.style.borderColor = active ? 'var(--border-accent)' : '';
+    });
+
+    var visible = tasks.filter(function(t){
+      if(filter === 'active' && t.done) return false;
+      if(filter === 'done' && !t.done) return false;
+      if(categoryFilter !== 'all' && t.category !== categoryFilter) return false;
+      return true;
+    });
+
+    var remaining = tasks.filter(function(t){ return !t.done; }).length;
+    countEl.textContent = remaining + ' left';
+
+    list.innerHTML = '';
+    if(visible.length === 0){
+      empty.style.display = 'block';
+    } else {
+      empty.style.display = 'none';
+      visible.forEach(function(t){
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:10px 12px; border:0.5px solid var(--border); border-radius:var(--radius); background:var(--surface-2);';
+
+        var check = document.createElement('button');
+        check.setAttribute('aria-label', t.done ? 'Mark as not done' : 'Mark as done');
+        check.style.cssText = 'width:20px; height:20px; min-width:20px; border-radius:50%; border:1.5px solid ' + (t.done ? 'var(--border-accent)' : 'var(--border-strong)') + '; background:' + (t.done ? 'var(--bg-accent)' : 'transparent') + '; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer;';
+        if(t.done){
+          check.innerHTML = '<i class="ti ti-check" style="font-size:13px; color:var(--text-accent);" aria-hidden="true"></i>';
+        }
+        check.onclick = function(){ toggleTask(t.id); };
+
+        var mid = document.createElement('div');
+        mid.style.cssText = 'flex:1; display:flex; flex-direction:column; gap:3px; min-width:0;';
+
+        var label = document.createElement('span');
+        label.textContent = t.text;
+        label.style.cssText = 'font-size:14px; overflow-wrap:break-word; ' + (t.done ? 'color:var(--text-muted); text-decoration:line-through;' : 'color:var(--text-primary);');
+
+        var meta = document.createElement('div');
+        meta.style.cssText = 'display:flex; gap:6px; align-items:center; flex-wrap:wrap;';
+
+        var colors = catColor(t.category);
+        var badge = document.createElement('span');
+        badge.textContent = t.category;
+        badge.style.cssText = 'font-size:11px; padding:2px 8px; border-radius:var(--radius); background:' + colors.bg + '; color:' + colors.text + ';';
+        meta.appendChild(badge);
+
+        if(t.subcategory){
+          var subBadge = document.createElement('span');
+          subBadge.textContent = t.subcategory;
+          subBadge.style.cssText = 'font-size:11px; padding:2px 8px; border-radius:var(--radius); background:var(--surface-1); color:var(--text-secondary);';
+          meta.appendChild(subBadge);
+        }
+
+        if(t.date){
+          var dateEl = document.createElement('span');
+          dateEl.innerHTML = '<i class="ti ti-calendar" style="font-size:12px; vertical-align:-1px;" aria-hidden="true"></i> ' + formatDate(t.date);
+          dateEl.style.cssText = 'font-size:11px; color:var(--text-muted);';
+          meta.appendChild(dateEl);
+        }
+
+        mid.appendChild(label);
+        mid.appendChild(meta);
+
+        var del = document.createElement('button');
+        del.setAttribute('aria-label', 'Delete task');
+        del.style.cssText = 'border:none; background:transparent; padding:4px; cursor:pointer; color:var(--text-muted);';
+        del.innerHTML = '<i class="ti ti-trash" style="font-size:16px;" aria-hidden="true"></i>';
+        del.onclick = function(){ deleteTask(t.id); };
+
+        row.appendChild(check);
+        row.appendChild(mid);
+        row.appendChild(del);
+        list.appendChild(row);
+      });
+    }
+  }
+
+  document.getElementById('add-btn').onclick = function(){
+    var input = document.getElementById('new-task');
+    var cat = document.getElementById('new-category');
+    var sub = document.getElementById('new-subcategory');
+    var date = document.getElementById('new-date');
+    if(cat.value === '__add__') return;
+    addTask(input.value, cat.value, sub.style.display !== 'none' ? sub.value : '', date.value);
+    input.value = '';
+    date.value = '';
+    input.focus();
+  };
+  document.getElementById('new-task').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){
+      document.getElementById('add-btn').click();
+    }
+  });
+
+  document.getElementById('new-category').addEventListener('change', function(){
+    if(this.value === '__add__'){
+      document.getElementById('add-cat-row').style.display = 'flex';
+      document.getElementById('new-cat-name').focus();
+    } else {
+      updateSubcategoryOptions();
+    }
+  });
+  document.getElementById('save-cat-btn').onclick = function(){
+    var input = document.getElementById('new-cat-name');
+    addCategory(input.value);
+    input.value = '';
+    document.getElementById('add-cat-row').style.display = 'none';
+  };
+  document.getElementById('cancel-cat-btn').onclick = function(){
+    document.getElementById('new-cat-name').value = '';
+    document.getElementById('add-cat-row').style.display = 'none';
+    document.getElementById('new-category').value = categories[0].name;
+    updateSubcategoryOptions();
+  };
+  document.getElementById('new-cat-name').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ document.getElementById('save-cat-btn').click(); }
+  });
+
+  document.getElementById('save-subcat-btn').onclick = function(){
+    var input = document.getElementById('new-subcat-name');
+    if(manageOpenFor){
+      addSubcategory(manageOpenFor, input.value);
+    }
+    input.value = '';
+    document.getElementById('add-subcat-row').style.display = 'none';
+    manageOpenFor = null;
+  };
+  document.getElementById('cancel-subcat-btn').onclick = function(){
+    document.getElementById('new-subcat-name').value = '';
+    document.getElementById('add-subcat-row').style.display = 'none';
+    manageOpenFor = null;
+  };
+  document.getElementById('new-subcat-name').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ document.getElementById('save-subcat-btn').click(); }
+  });
+
+  document.querySelectorAll('.filter-btn').forEach(function(btn){
+    btn.onclick = function(){
+      filter = btn.getAttribute('data-filter');
+      render();
+    };
+  });
+  document.getElementById('category-filter').onchange = function(){
+    categoryFilter = this.value;
+    render();
+  };
+
+  document.getElementById('manage-toggle').onclick = function(){
+    var panel = document.getElementById('manage-panel');
+    var showing = panel.style.display === 'flex';
+    panel.style.display = showing ? 'none' : 'flex';
+    if(!showing) renderManagePanel();
+  };
+
+  loadAll();
+})();
+</script>
