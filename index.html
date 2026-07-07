@@ -1,10 +1,19 @@
-<h2 class="sr-only">An interactive to-do list with custom categories, subcategories, and due dates, saved automatically.</h2>
-<div style="max-width: 520px;">
+<h2 class="sr-only">An interactive to-do list with custom categories, subcategories, start and end dates, saved automatically.</h2>
+<div style="max-width: 560px;">
   <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
     <input id="new-task" type="text" placeholder="Add a task" style="flex:2; min-width:140px;" />
     <select id="new-category" style="flex:1; min-width:120px;"></select>
     <select id="new-subcategory" style="flex:1; min-width:120px; display:none;"></select>
-    <input id="new-date" type="date" style="flex:1; min-width:130px;" />
+  </div>
+  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; align-items:center;">
+    <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:150px;">
+      <label style="font-size:12px; color:var(--text-secondary); white-space:nowrap;">Start</label>
+      <input id="new-start-date" type="date" style="flex:1;" />
+    </div>
+    <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:150px;">
+      <label style="font-size:12px; color:var(--text-secondary); white-space:nowrap;">End</label>
+      <input id="new-end-date" type="date" style="flex:1;" />
+    </div>
   </div>
 
   <div id="add-cat-row" style="display:none; gap:8px; margin-bottom:10px;">
@@ -102,8 +111,18 @@
     var today = todayStr();
     var changed = false;
     tasks.forEach(function(t){
-      if(!t.done && t.date && t.date < today){
+      var endRef = t.endDate || t.date;
+      if(!t.done && endRef && endRef < today){
+        var span = 0;
+        if(t.date && t.endDate){
+          span = Math.round((new Date(t.endDate) - new Date(t.date)) / 86400000);
+        }
         t.date = today;
+        if(t.endDate){
+          var newEnd = new Date(today);
+          newEnd.setDate(newEnd.getDate() + Math.max(span, 0));
+          t.endDate = newEnd.getFullYear() + '-' + String(newEnd.getMonth()+1).padStart(2,'0') + '-' + String(newEnd.getDate()).padStart(2,'0');
+        }
         changed = true;
       }
     });
@@ -127,6 +146,7 @@
     tasks.forEach(function(t){
       if(!t.category) t.category = 'Other';
       if(t.date === undefined) t.date = '';
+      if(t.endDate === undefined) t.endDate = '';
       if(t.subcategory === undefined) t.subcategory = '';
     });
     rollForwardOverdue();
@@ -313,10 +333,10 @@
     });
   }
 
-  function addTask(text, category, subcategory, date){
+  function addTask(text, category, subcategory, startDate, endDate){
     text = text.trim();
     if(!text) return;
-    tasks.unshift({ id: uid(), text: text, done: false, category: category || categories[0].name, subcategory: subcategory || '', date: date || '' });
+    tasks.unshift({ id: uid(), text: text, done: false, category: category || categories[0].name, subcategory: subcategory || '', date: startDate || '', endDate: endDate || '' });
     saveTasks();
     render();
   }
@@ -394,9 +414,17 @@
           meta.appendChild(subBadge);
         }
 
-        if(t.date){
+        if(t.date || t.endDate){
           var dateEl = document.createElement('span');
-          dateEl.innerHTML = '<i class="ti ti-calendar" style="font-size:12px; vertical-align:-1px;" aria-hidden="true"></i> ' + formatDate(t.date);
+          var dateText = '';
+          if(t.date && t.endDate && t.date !== t.endDate){
+            dateText = formatDate(t.date) + ' \u2192 ' + formatDate(t.endDate);
+          } else if(t.date){
+            dateText = formatDate(t.date);
+          } else if(t.endDate){
+            dateText = formatDate(t.endDate);
+          }
+          dateEl.innerHTML = '<i class="ti ti-calendar" style="font-size:12px; vertical-align:-1px;" aria-hidden="true"></i> ' + dateText;
           dateEl.style.cssText = 'font-size:11px; color:var(--text-muted);';
           meta.appendChild(dateEl);
         }
@@ -422,11 +450,13 @@
     var input = document.getElementById('new-task');
     var cat = document.getElementById('new-category');
     var sub = document.getElementById('new-subcategory');
-    var date = document.getElementById('new-date');
+    var startDate = document.getElementById('new-start-date');
+    var endDate = document.getElementById('new-end-date');
     if(cat.value === '__add__') return;
-    addTask(input.value, cat.value, sub.style.display !== 'none' ? sub.value : '', date.value);
+    addTask(input.value, cat.value, sub.style.display !== 'none' ? sub.value : '', startDate.value, endDate.value);
     input.value = '';
-    date.value = '';
+    startDate.value = '';
+    endDate.value = '';
     input.focus();
   };
   document.getElementById('new-task').addEventListener('keydown', function(e){
